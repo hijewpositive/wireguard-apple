@@ -23,6 +23,7 @@ final class SceneImportQueue {
     typealias ErrorPresenter = (String, String, @escaping () -> Void) -> Void
 
     private var pendingURLs: [URL] = []
+    private weak var currentOwner: AnyObject?
     private var importer: Importer?
     private var errorPresenter: ErrorPresenter?
     private var activeImportID: UUID?
@@ -41,18 +42,40 @@ final class SceneImportQueue {
         processNextIfReady()
     }
 
-    func setImporter(_ importer: Importer?) {
+    /// Transfers scene ownership and revokes callbacks retained by the old scene.
+    /// Active and queued imports remain untouched until a live owner handles them.
+    func claimOwnership(for owner: AnyObject) {
         requireMainThread()
+        guard currentOwner !== owner else { return }
+        currentOwner = owner
+        importer = nil
+        errorPresenter = nil
+        activePresentationID = nil
+    }
+
+    func setImporter(_ importer: Importer?, for owner: AnyObject) {
+        requireMainThread()
+        guard currentOwner === owner else { return }
         self.importer = importer
         processNextIfReady()
     }
 
-    func setErrorPresenter(_ errorPresenter: ErrorPresenter?) {
+    func setErrorPresenter(_ errorPresenter: ErrorPresenter?, for owner: AnyObject) {
         requireMainThread()
+        guard currentOwner === owner else { return }
         self.errorPresenter = errorPresenter
         // A dismissal from a disconnected scene must not acknowledge this error.
         activePresentationID = nil
         presentPendingFailureIfPossible()
+    }
+
+    func clearOwnership(for owner: AnyObject) {
+        requireMainThread()
+        guard currentOwner === owner else { return }
+        currentOwner = nil
+        importer = nil
+        errorPresenter = nil
+        activePresentationID = nil
     }
 
     private func processNextIfReady() {

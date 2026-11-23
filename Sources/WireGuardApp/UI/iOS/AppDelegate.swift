@@ -48,12 +48,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
 
+    func claimDisposableFileImportOwnership(for sourceVC: MainViewController) {
+        disposableFileImportQueue.claimOwnership(for: sourceVC)
+        mainVC = sourceVC
+    }
+
     func setDisposableFileImportHandler(tunnelsManager: TunnelsManager, sourceVC: MainViewController) {
         // Manager creation is asynchronous; a disconnected scene must not reclaim the queue.
         guard mainVC === sourceVC else { return }
 
         let weakSource = WeakImportSource(sourceVC)
-        disposableFileImportQueue.setErrorPresenter { title, message, onDismissal in
+        disposableFileImportQueue.setErrorPresenter({ title, message, onDismissal in
             guard let sourceVC = weakSource.viewController else { return }
             ErrorPresenter.showErrorAlert(
                 title: title,
@@ -61,8 +66,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 from: sourceVC,
                 onDismissal: onDismissal
             )
-        }
-        disposableFileImportQueue.setImporter { url, completion in
+        }, for: sourceVC)
+        disposableFileImportQueue.setImporter({ url, completion in
             TunnelImporter.importFromFile(
                 urls: [url],
                 into: tunnelsManager,
@@ -76,13 +81,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                     }
                 }
             )
-        }
+        }, for: sourceVC)
     }
 
     func clearDisposableFileImportHandler(for sourceVC: MainViewController) {
         guard mainVC === sourceVC else { return }
-        disposableFileImportQueue.setImporter(nil)
-        disposableFileImportQueue.setErrorPresenter(nil)
+        disposableFileImportQueue.clearOwnership(for: sourceVC)
+        mainVC = nil
     }
 
     func handleShortcutItem(_ shortcutItem: UIApplicationShortcutItem) -> Bool {

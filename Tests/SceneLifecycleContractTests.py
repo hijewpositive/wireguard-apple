@@ -75,9 +75,27 @@ class SceneLifecycleContractTests(unittest.TestCase):
         app = self.app_delegate
         self.assertIn("clearDisposableFileImportHandler(for: mainVC)", scene)
         self.assertIn("guard mainVC === sourceVC else { return }", app)
-        self.assertIn("disposableFileImportQueue.setImporter(nil)", app)
-        self.assertIn("disposableFileImportQueue.setErrorPresenter(nil)", app)
+        self.assertIn("disposableFileImportQueue.clearOwnership(for: sourceVC)", app)
         self.assertIn("guard mainVC === sourceVC else { return }", app)
+
+    def test_replacement_scene_revokes_old_handlers_before_its_manager_is_ready(self):
+        scene = self.scene_delegate.read_text()
+        app = self.app_delegate
+        queue = (IOS / "SceneImportQueue.swift").read_text()
+        connect = scene[scene.index("func scene("):scene.index("func scene(_ scene: UIScene, openURLContexts")]
+        claim = app[app.index("func claimDisposableFileImportOwnership"):app.index("func setDisposableFileImportHandler")]
+
+        self.assertIn("claimDisposableFileImportOwnership(for: mainVC)", connect)
+        self.assertLess(connect.index("claimDisposableFileImportOwnership"), connect.index("window.makeKeyAndVisible"))
+        self.assertNotIn("appDelegate?.mainVC = mainVC", connect)
+        self.assertIn("mainVC = sourceVC", claim)
+        self.assertIn("disposableFileImportQueue.claimOwnership(for: sourceVC)", claim)
+        self.assertLess(claim.index("disposableFileImportQueue.claimOwnership"), claim.index("mainVC = sourceVC"))
+        self.assertIn("disposableFileImportQueue.clearOwnership(for: sourceVC)", app)
+        self.assertGreaterEqual(app.count("}, for: sourceVC)"), 2)
+        self.assertIn("guard currentOwner === owner else { return }", queue)
+        self.assertIn("importer = nil", queue)
+        self.assertIn("errorPresenter = nil", queue)
 
     def test_delayed_manager_initialization_cannot_attach_a_disconnected_scene(self):
         app = self.app_delegate

@@ -23,7 +23,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         let appDelegate = UIApplication.shared.delegate as? AppDelegate
         let mainVC = MainViewController()
         self.mainVC = mainVC
-        appDelegate?.mainVC = mainVC
+        appDelegate?.claimDisposableFileImportOwnership(for: mainVC)
 
         let window = UIWindow(windowScene: windowScene)
         window.rootViewController = mainVC
@@ -82,7 +82,6 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
            let mainVC = mainVC,
            appDelegate.mainVC === mainVC {
             appDelegate.clearDisposableFileImportHandler(for: mainVC)
-            appDelegate.mainVC = nil
         }
         mainVC = nil
         window = nil

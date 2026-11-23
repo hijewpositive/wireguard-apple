@@ -48,6 +48,7 @@ class SceneBehaviorRuntimeTests(unittest.TestCase):
             self.assertEqual(run.returncode, 0, msg=run.stderr)
             self.assertIn("PASS: import failures wait for a live presenter and dismissal", run.stdout)
             self.assertIn("PASS: successful imports clean up and proceed in FIFO order", run.stdout)
+            self.assertIn("PASS: replacement scene owns imports across the manager-readiness gap", run.stdout)
             self.assertIn("PASS: scene action state resets on reconnection", run.stdout)
             self.assertIn("PASS: nested compact and wide details restore selection", run.stdout)
             self.assertIn("PASS: empty navigation restores no tunnel", run.stdout)
