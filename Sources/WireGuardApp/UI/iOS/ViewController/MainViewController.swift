@@ -6,7 +6,7 @@ import UIKit
 class MainViewController: UISplitViewController {
 
     var tunnelsManager: TunnelsManager?
-    var onTunnelsManagerReady: ((TunnelsManager) -> Void)?
+    private var pendingTunnelsManagerActions: [(TunnelsManager) -> Void] = []
     var tunnelsListVC: TunnelsListTableViewController?
 
     init() {
@@ -51,8 +51,8 @@ class MainViewController: UISplitViewController {
 
                 tunnelsManager.activationDelegate = self
 
-                self.onTunnelsManagerReady?(tunnelsManager)
-                self.onTunnelsManagerReady = nil
+                self.pendingTunnelsManagerActions.forEach { $0(tunnelsManager) }
+                self.pendingTunnelsManagerActions.removeAll()
             }
         }
     }
@@ -60,6 +60,22 @@ class MainViewController: UISplitViewController {
     func allTunnelNames() -> [String]? {
         guard let tunnelsManager = self.tunnelsManager else { return nil }
         return tunnelsManager.mapTunnels { $0.name }
+    }
+
+    func handleShortcutItem(_ shortcutItem: UIApplicationShortcutItem) -> Bool {
+        guard shortcutItem.type == QuickActionItem.type else { return false }
+        showTunnelDetailForTunnel(named: shortcutItem.localizedTitle, animated: false, shouldToggleStatus: true)
+        return true
+    }
+
+    func tunnelNameForRestoration() -> String? {
+        for viewController in viewControllers {
+            guard let navigationController = viewController as? UINavigationController else { continue }
+            if let detailViewController = navigationController.viewControllers.reversed().compactMap({ $0 as? TunnelDetailTableViewController }).first {
+                return detailViewController.tunnel.name
+            }
+        }
+        return nil
     }
 }
 
@@ -82,6 +98,14 @@ extension MainViewController: TunnelsManagerActivationDelegate {
 }
 
 extension MainViewController {
+    private func performWhenTunnelsManagerReady(_ action: @escaping (TunnelsManager) -> Void) {
+        if let tunnelsManager = tunnelsManager {
+            action(tunnelsManager)
+        } else {
+            pendingTunnelsManagerActions.append(action)
+        }
+    }
+
     func refreshTunnelConnectionStatuses() {
         if let tunnelsManager = tunnelsManager {
             tunnelsManager.refreshStatuses()
@@ -89,9 +113,8 @@ extension MainViewController {
     }
 
     func showTunnelDetailForTunnel(named tunnelName: String, animated: Bool, shouldToggleStatus: Bool) {
-        let showTunnelDetailBlock: (TunnelsManager) -> Void = { [weak self] tunnelsManager in
-            guard let self = self else { return }
-            guard let tunnelsListVC = self.tunnelsListVC else { return }
+        performWhenTunnelsManagerReady { [weak self] tunnelsManager in
+            guard let self = self, let tunnelsListVC = self.tunnelsListVC else { return }
             if let tunnel = tunnelsManager.tunnel(named: tunnelName) {
                 tunnelsListVC.showTunnelDetail(for: tunnel, animated: false)
                 if shouldToggleStatus {
@@ -103,23 +126,13 @@ extension MainViewController {
                 }
             }
         }
-        if let tunnelsManager = tunnelsManager {
-            showTunnelDetailBlock(tunnelsManager)
-        } else {
-            onTunnelsManagerReady = showTunnelDetailBlock
-        }
     }
 
     func importFromDisposableFile(url: URL) {
-        let importFromFileBlock: (TunnelsManager) -> Void = { [weak self] tunnelsManager in
+        performWhenTunnelsManagerReady { [weak self] tunnelsManager in
             TunnelImporter.importFromFile(urls: [url], into: tunnelsManager, sourceVC: self, errorPresenterType: ErrorPresenter.self) {
                 _ = FileManager.deleteFile(at: url)
             }
-        }
-        if let tunnelsManager = tunnelsManager {
-            importFromFileBlock(tunnelsManager)
-        } else {
-            onTunnelsManagerReady = importFromFileBlock
         }
     }
 }

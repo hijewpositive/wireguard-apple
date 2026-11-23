@@ -7,8 +7,7 @@ import os.log
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
-    var window: UIWindow?
-    var mainVC: MainViewController?
+    weak var mainVC: MainViewController?
     var isLaunchedForSpecificAction = false
 
     func application(_ application: UIApplication, willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
@@ -20,40 +19,26 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             }
         }
 
-        let window = UIWindow(frame: UIScreen.main.bounds)
-        self.window = window
-
-        let mainVC = MainViewController()
-        window.rootViewController = mainVC
-        window.makeKeyAndVisible()
-
-        self.mainVC = mainVC
-
         return true
     }
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
-        mainVC?.importFromDisposableFile(url: url)
+        handleOpenURL(url)
         return true
     }
 
-    func applicationDidBecomeActive(_ application: UIApplication) {
-        mainVC?.refreshTunnelConnectionStatuses()
+    func handleOpenURL(_ url: URL) {
+        mainVC?.importFromDisposableFile(url: url)
     }
 
-    func applicationWillResignActive(_ application: UIApplication) {
-        guard let allTunnelNames = mainVC?.allTunnelNames() else { return }
-        application.shortcutItems = QuickActionItem.createItems(allTunnelNames: allTunnelNames)
+    func handleShortcutItem(_ shortcutItem: UIApplicationShortcutItem) -> Bool {
+        guard shortcutItem.type == QuickActionItem.type else { return false }
+        _ = mainVC?.handleShortcutItem(shortcutItem)
+        return true
     }
 
     func application(_ application: UIApplication, performActionFor shortcutItem: UIApplicationShortcutItem, completionHandler: @escaping (Bool) -> Void) {
-        guard shortcutItem.type == QuickActionItem.type else {
-            completionHandler(false)
-            return
-        }
-        let tunnelName = shortcutItem.localizedTitle
-        mainVC?.showTunnelDetailForTunnel(named: tunnelName, animated: false, shouldToggleStatus: true)
-        completionHandler(true)
+        completionHandler(handleShortcutItem(shortcutItem))
     }
 }
 
