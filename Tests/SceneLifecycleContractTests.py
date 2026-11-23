@@ -35,6 +35,8 @@ class SceneLifecycleContractTests(unittest.TestCase):
         self.assertIn("connectionOptions.shortcutItem", source)
         self.assertIn("appDelegate?.isLaunchedForSpecificAction = true", source)
         self.assertIn("if appDelegate?.isLaunchedForSpecificAction != true", source)
+        self.assertIn("enqueueDisposableFileImports", source)
+        self.assertNotIn("mainVC.importFromDisposableFile", source)
 
     def test_window_is_bound_to_the_connected_scene_not_screen_bounds(self):
         source = self.scene_delegate.read_text()
@@ -45,9 +47,25 @@ class SceneLifecycleContractTests(unittest.TestCase):
     def test_scene_forwards_import_urls_and_quick_actions(self):
         source = self.scene_delegate.read_text()
         self.assertIn("openURLContexts", source)
-        self.assertIn("importFromDisposableFile", source)
+        self.assertIn("enqueueDisposableFileImports", source)
+        self.assertNotIn("importFromDisposableFile", source)
         self.assertIn("performActionFor", source)
         self.assertIn("handleShortcutItem", source)
+
+    def test_import_queue_is_owned_by_application_and_ready_after_manager_creation(self):
+        app = self.app_delegate
+        main = self.main_controller
+        importer = (ROOT / "Sources/WireGuardApp/UI/TunnelImporter.swift").read_text()
+        picker = (IOS / "ViewController/TunnelsListTableViewController.swift").read_text()
+        self.assertIn("SceneImportQueue", app)
+        self.assertIn("enqueueDisposableFileImports", app)
+        self.assertIn("setDisposableFileImportHandler", main)
+        self.assertIn("setDisposableFileImportHandler", app)
+        self.assertIn("completionHandler: completion", app)
+        self.assertIn("tunnelsManager.addMultiple", importer)
+        self.assertIn("completionHandler?()", importer)
+        self.assertIn("enqueueDisposableFileImports(urls)", picker)
+        self.assertNotIn("TunnelImporter.importFromFile", picker)
 
     def test_scene_lifecycle_refreshes_status_and_shortcuts(self):
         source = self.scene_delegate.read_text()
@@ -82,6 +100,9 @@ class SceneLifecycleContractTests(unittest.TestCase):
         self.assertIn("class MainViewController: UISplitViewController", source)
         self.assertIn("collapseSecondary", source)
         self.assertIn("return isDetailVCEmpty", source)
+        self.assertIn("TunnelDetailRestoration.tunnelName", source)
+        self.assertIn("viewController.children", source)
+        self.assertIn("childViewControllers.map", source)
         self.assertNotIn("UIScreen.main", source)
         self.assertNotIn("userInterfaceIdiom", source)
 

@@ -37,18 +37,20 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             mainVC.showTunnelDetailForTunnel(named: tunnelName, animated: false, shouldToggleStatus: false)
         }
 
-        for context in connectionOptions.urlContexts.sorted(by: { $0.url.absoluteString < $1.url.absoluteString }) {
-            mainVC.importFromDisposableFile(url: context.url)
-        }
+        let importURLs = connectionOptions.urlContexts
+            .sorted(by: { $0.url.absoluteString < $1.url.absoluteString })
+            .map { $0.url }
+        appDelegate?.enqueueDisposableFileImports(importURLs)
         if let shortcutItem = connectionOptions.shortcutItem {
             _ = mainVC.handleShortcutItem(shortcutItem)
         }
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
-        for context in URLContexts.sorted(by: { $0.url.absoluteString < $1.url.absoluteString }) {
-            mainVC?.importFromDisposableFile(url: context.url)
-        }
+        let importURLs = URLContexts
+            .sorted(by: { $0.url.absoluteString < $1.url.absoluteString })
+            .map { $0.url }
+        (UIApplication.shared.delegate as? AppDelegate)?.enqueueDisposableFileImports(importURLs)
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {

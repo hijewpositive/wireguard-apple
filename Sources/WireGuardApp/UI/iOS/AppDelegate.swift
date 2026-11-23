@@ -4,10 +4,21 @@
 import UIKit
 import os.log
 
+private final class WeakImportSource {
+    weak var viewController: UIViewController?
+
+    init(_ viewController: UIViewController) {
+        self.viewController = viewController
+    }
+}
+
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     weak var mainVC: MainViewController?
+    private lazy var disposableFileImportQueue = SceneImportQueue { url in
+        _ = FileManager.deleteFile(at: url)
+    }
     var isLaunchedForSpecificAction = false
 
     func application(_ application: UIApplication, willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
@@ -28,7 +39,26 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func handleOpenURL(_ url: URL) {
-        mainVC?.importFromDisposableFile(url: url)
+        enqueueDisposableFileImports([url])
+    }
+
+    func enqueueDisposableFileImports(_ urls: [URL]) {
+        for url in urls.sorted(by: { $0.absoluteString < $1.absoluteString }) {
+            disposableFileImportQueue.enqueue(url)
+        }
+    }
+
+    func setDisposableFileImportHandler(tunnelsManager: TunnelsManager, sourceVC: UIViewController) {
+        let weakSource = WeakImportSource(sourceVC)
+        disposableFileImportQueue.setImporter { url, completion in
+            TunnelImporter.importFromFile(
+                urls: [url],
+                into: tunnelsManager,
+                sourceVC: weakSource.viewController,
+                errorPresenterType: ErrorPresenter.self,
+                completionHandler: completion
+            )
+        }
     }
 
     func handleShortcutItem(_ shortcutItem: UIApplicationShortcutItem) -> Bool {

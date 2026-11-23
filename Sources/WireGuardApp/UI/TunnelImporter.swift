@@ -84,10 +84,9 @@ class TunnelImporter {
                                  message: tr(format: "alertImportedFromMultipleFilesMessage (%1$d of %2$d)", numberSuccessful, configs.count))
                 }
                 if let alertText = alertText {
-                    errorPresenterType.showErrorAlert(title: alertText.title, message: alertText.message, from: sourceVC, onPresented: completionHandler)
-                } else {
-                    completionHandler?()
+                    errorPresenterType.showErrorAlert(title: alertText.title, message: alertText.message, from: sourceVC)
                 }
+                completionHandler?()
             }
         }
     }

@@ -39,20 +39,24 @@ class MainViewController: UISplitViewController {
         preferredDisplayMode = .allVisible
 
         // Create the tunnels manager, and when it's ready, inform tunnelsListVC
-        TunnelsManager.create { [weak self] result in
-            guard let self = self else { return }
+        TunnelsManager.create { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .failure(let error):
+                    ErrorPresenter.showErrorAlert(error: error, from: self)
+                case .success(let tunnelsManager):
+                    self.tunnelsManager = tunnelsManager
+                    self.tunnelsListVC?.setTunnelsManager(tunnelsManager: tunnelsManager)
 
-            switch result {
-            case .failure(let error):
-                ErrorPresenter.showErrorAlert(error: error, from: self)
-            case .success(let tunnelsManager):
-                self.tunnelsManager = tunnelsManager
-                self.tunnelsListVC?.setTunnelsManager(tunnelsManager: tunnelsManager)
+                    tunnelsManager.activationDelegate = self
+                    (UIApplication.shared.delegate as? AppDelegate)?.setDisposableFileImportHandler(
+                        tunnelsManager: tunnelsManager,
+                        sourceVC: self
+                    )
 
-                tunnelsManager.activationDelegate = self
-
-                self.pendingTunnelsManagerActions.forEach { $0(tunnelsManager) }
-                self.pendingTunnelsManagerActions.removeAll()
+                    self.pendingTunnelsManagerActions.forEach { $0(tunnelsManager) }
+                    self.pendingTunnelsManagerActions.removeAll()
+                }
             }
         }
     }
@@ -69,13 +73,22 @@ class MainViewController: UISplitViewController {
     }
 
     func tunnelNameForRestoration() -> String? {
-        for viewController in viewControllers {
-            guard let navigationController = viewController as? UINavigationController else { continue }
-            if let detailViewController = navigationController.viewControllers.reversed().compactMap({ $0 as? TunnelDetailTableViewController }).first {
-                return detailViewController.tunnel.name
-            }
+        let navigationHierarchy = viewControllers.map { restorationNode(for: $0) }
+        return TunnelDetailRestoration.tunnelName(in: navigationHierarchy)
+    }
+
+    private func restorationNode(for viewController: UIViewController) -> TunnelDetailRestoration.Node {
+        let tunnelName = (viewController as? TunnelDetailTableViewController).map { $0.tunnel.name }
+        let childViewControllers: [UIViewController]
+        if let navigationController = viewController as? UINavigationController {
+            childViewControllers = navigationController.viewControllers
+        } else {
+            childViewControllers = viewController.children
         }
-        return nil
+        return TunnelDetailRestoration.Node(
+            tunnelName: tunnelName,
+            children: childViewControllers.map { restorationNode(for: $0) }
+        )
     }
 }
 
@@ -124,14 +137,6 @@ extension MainViewController {
                         tunnelsManager.startDeactivation(of: tunnel)
                     }
                 }
-            }
-        }
-    }
-
-    func importFromDisposableFile(url: URL) {
-        performWhenTunnelsManagerReady { [weak self] tunnelsManager in
-            TunnelImporter.importFromFile(urls: [url], into: tunnelsManager, sourceVC: self, errorPresenterType: ErrorPresenter.self) {
-                _ = FileManager.deleteFile(at: url)
             }
         }
     }
