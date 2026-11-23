@@ -19,14 +19,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private lazy var disposableFileImportQueue = SceneImportQueue { url in
         _ = FileManager.deleteFile(at: url)
     }
-    var isLaunchedForSpecificAction = false
+    var isProcessLaunchedForSpecificAction = false
 
     func application(_ application: UIApplication, willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         Logger.configureGlobal(tagged: "APP", withFilePath: FileManager.logFileURL?.path)
 
         if let launchOptions = launchOptions {
             if launchOptions[.url] != nil || launchOptions[.shortcutItem] != nil {
-                isLaunchedForSpecificAction = true
+                isProcessLaunchedForSpecificAction = true
             }
         }
 
@@ -48,17 +48,41 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
 
-    func setDisposableFileImportHandler(tunnelsManager: TunnelsManager, sourceVC: UIViewController) {
+    func setDisposableFileImportHandler(tunnelsManager: TunnelsManager, sourceVC: MainViewController) {
+        // Manager creation is asynchronous; a disconnected scene must not reclaim the queue.
+        guard mainVC === sourceVC else { return }
+
         let weakSource = WeakImportSource(sourceVC)
+        disposableFileImportQueue.setErrorPresenter { title, message, onDismissal in
+            guard let sourceVC = weakSource.viewController else { return }
+            ErrorPresenter.showErrorAlert(
+                title: title,
+                message: message,
+                from: sourceVC,
+                onDismissal: onDismissal
+            )
+        }
         disposableFileImportQueue.setImporter { url, completion in
             TunnelImporter.importFromFile(
                 urls: [url],
                 into: tunnelsManager,
                 sourceVC: weakSource.viewController,
                 errorPresenterType: ErrorPresenter.self,
-                completionHandler: completion
+                resultHandler: { failure in
+                    if let failure = failure {
+                        completion(.failure(title: failure.title, message: failure.message))
+                    } else {
+                        completion(.success)
+                    }
+                }
             )
         }
+    }
+
+    func clearDisposableFileImportHandler(for sourceVC: MainViewController) {
+        guard mainVC === sourceVC else { return }
+        disposableFileImportQueue.setImporter(nil)
+        disposableFileImportQueue.setErrorPresenter(nil)
     }
 
     func handleShortcutItem(_ shortcutItem: UIApplicationShortcutItem) -> Bool {
@@ -78,7 +102,7 @@ extension AppDelegate {
     }
 
     func application(_ application: UIApplication, shouldRestoreApplicationState coder: NSCoder) -> Bool {
-        return !self.isLaunchedForSpecificAction
+        return !self.isProcessLaunchedForSpecificAction
     }
 
     func application(_ application: UIApplication, viewControllerWithRestorationIdentifierPath identifierComponents: [String], coder: NSCoder) -> UIViewController? {

@@ -33,8 +33,9 @@ class SceneLifecycleContractTests(unittest.TestCase):
         source = self.scene_delegate.read_text()
         self.assertIn("connectionOptions.urlContexts", source)
         self.assertIn("connectionOptions.shortcutItem", source)
-        self.assertIn("appDelegate?.isLaunchedForSpecificAction = true", source)
-        self.assertIn("if appDelegate?.isLaunchedForSpecificAction != true", source)
+        self.assertIn("launchActionState.update", source)
+        self.assertIn("if !launchActionState.isLaunchedForSpecificAction", source)
+        self.assertNotIn("appDelegate?.isLaunchedForSpecificAction = true", source)
         self.assertIn("enqueueDisposableFileImports", source)
         self.assertNotIn("mainVC.importFromDisposableFile", source)
 
@@ -61,11 +62,38 @@ class SceneLifecycleContractTests(unittest.TestCase):
         self.assertIn("enqueueDisposableFileImports", app)
         self.assertIn("setDisposableFileImportHandler", main)
         self.assertIn("setDisposableFileImportHandler", app)
-        self.assertIn("completionHandler: completion", app)
+        self.assertIn("resultHandler: { failure in", app)
+        self.assertIn("completion(.failure", app)
+        self.assertIn("completion(.success)", app)
         self.assertIn("tunnelsManager.addMultiple", importer)
-        self.assertIn("completionHandler?()", importer)
+        self.assertIn("resultHandler?(nil)", importer)
         self.assertIn("enqueueDisposableFileImports(urls)", picker)
         self.assertNotIn("TunnelImporter.importFromFile", picker)
+
+    def test_scene_disconnect_detaches_only_its_live_import_context(self):
+        scene = self.scene_delegate.read_text()
+        app = self.app_delegate
+        self.assertIn("clearDisposableFileImportHandler(for: mainVC)", scene)
+        self.assertIn("guard mainVC === sourceVC else { return }", app)
+        self.assertIn("disposableFileImportQueue.setImporter(nil)", app)
+        self.assertIn("disposableFileImportQueue.setErrorPresenter(nil)", app)
+        self.assertIn("guard mainVC === sourceVC else { return }", app)
+
+    def test_delayed_manager_initialization_cannot_attach_a_disconnected_scene(self):
+        app = self.app_delegate
+        main = self.main_controller
+        self.assertIn("guard mainVC === sourceVC else { return }", app)
+        self.assertIn("setDisposableFileImportHandler", main)
+
+    def test_import_errors_are_queued_until_the_live_alert_is_dismissed(self):
+        app = self.app_delegate
+        importer = (ROOT / "Sources/WireGuardApp/UI/TunnelImporter.swift").read_text()
+        self.assertIn("setErrorPresenter", app)
+        self.assertIn("resultHandler", app)
+        self.assertIn("resultHandler", importer)
+        self.assertIn("onDismissal", app)
+        presenter = (IOS / "ErrorPresenter.swift").read_text()
+        self.assertIn("alert?.dismiss(animated: true, completion: onDismissal)", presenter)
 
     def test_scene_lifecycle_refreshes_status_and_shortcuts(self):
         source = self.scene_delegate.read_text()

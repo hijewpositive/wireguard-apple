@@ -4,8 +4,16 @@
 import Foundation
 
 class TunnelImporter {
-    static func importFromFile(urls: [URL], into tunnelsManager: TunnelsManager, sourceVC: AnyObject?, errorPresenterType: ErrorPresenterProtocol.Type, completionHandler: (() -> Void)? = nil) {
+    typealias ResultHandler = ((title: String, message: String)?) -> Void
+
+    static func importFromFile(urls: [URL],
+                               into tunnelsManager: TunnelsManager,
+                               sourceVC: AnyObject?,
+                               errorPresenterType: ErrorPresenterProtocol.Type,
+                               resultHandler: ResultHandler? = nil,
+                               completionHandler: (() -> Void)? = nil) {
         guard !urls.isEmpty else {
+            resultHandler?(nil)
             completionHandler?()
             return
         }
@@ -68,6 +76,7 @@ class TunnelImporter {
         dispatchGroup.notify(queue: .main) {
             tunnelsManager.addMultiple(tunnelConfigurations: configs.compactMap { $0 }) { numberSuccessful, lastAddError in
                 if !configs.isEmpty && numberSuccessful == configs.count {
+                    resultHandler?(nil)
                     completionHandler?()
                     return
                 }
@@ -83,7 +92,9 @@ class TunnelImporter {
                     alertText = (title: tr(format: "alertImportedFromMultipleFilesTitle (%d)", numberSuccessful),
                                  message: tr(format: "alertImportedFromMultipleFilesMessage (%1$d of %2$d)", numberSuccessful, configs.count))
                 }
-                if let alertText = alertText {
+                if let resultHandler = resultHandler {
+                    resultHandler(alertText)
+                } else if let alertText = alertText {
                     errorPresenterType.showErrorAlert(title: alertText.title, message: alertText.message, from: sourceVC)
                 }
                 completionHandler?()

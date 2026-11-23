@@ -9,17 +9,18 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     var window: UIWindow?
     private var mainVC: MainViewController?
+    private var launchActionState = SceneLaunchActionState()
 
     func scene(_ scene: UIScene,
                willConnectTo session: UISceneSession,
                options connectionOptions: UIScene.ConnectionOptions) {
+        launchActionState.update(
+            hasURLContexts: !connectionOptions.urlContexts.isEmpty,
+            hasShortcutItem: connectionOptions.shortcutItem != nil
+        )
         guard let windowScene = scene as? UIWindowScene else { return }
 
         let appDelegate = UIApplication.shared.delegate as? AppDelegate
-        if !connectionOptions.urlContexts.isEmpty || connectionOptions.shortcutItem != nil {
-            appDelegate?.isLaunchedForSpecificAction = true
-        }
-
         let mainVC = MainViewController()
         self.mainVC = mainVC
         appDelegate?.mainVC = mainVC
@@ -29,7 +30,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         self.window = window
         window.makeKeyAndVisible()
 
-        if appDelegate?.isLaunchedForSpecificAction != true,
+        if !launchActionState.isLaunchedForSpecificAction,
            let activity = session.stateRestorationActivity,
            activity.activityType == Self.restorationActivityType,
            let tunnelName = activity.userInfo?[Self.restoredTunnelNameKey] as? String,
@@ -78,7 +79,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func sceneDidDisconnect(_ scene: UIScene) {
         if let appDelegate = UIApplication.shared.delegate as? AppDelegate,
+           let mainVC = mainVC,
            appDelegate.mainVC === mainVC {
+            appDelegate.clearDisposableFileImportHandler(for: mainVC)
             appDelegate.mainVC = nil
         }
         mainVC = nil
